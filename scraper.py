@@ -6,6 +6,7 @@ from webdriver_manager.chrome import ChromeDriverManager
 from selenium.webdriver.chrome.service import Service
 from bs4 import BeautifulSoup
 from urllib.parse import unquote
+from datetime import datetime
 
 HEADERS = {
     "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/58.0.3029.110 Safari/537.3"
@@ -58,21 +59,50 @@ def download_post(post_url, save_path):
         print(f"Nie znaleziono elementu obrazu w poście: {post_url}")
         return
 
-    txt_file_name = os.path.basename(img_name).split('.')[0] + '.md'
+    if date_elem:
+        date_text = date_elem.get_text(strip=True).replace('Dodane ', '')
+        # Map Polish month names to numbers
+        month_mapping = {
+            'STYCZNIA': '01', 'STYCZEŃ': '01', 'LUTEGO': '02', 'LUTY': '02', 'MARCA': '03', 'MARZEC': '03', 
+            'KWIECIEŃ': '04', 'KWIETNIA': '04', 'KWIECIENIA': '04', 'MAJA': '05', 'MAJ': '05', 'CZERWCA': '06', 'CZERWIEC': '06', 
+            'LIPIECA': '07', 'LIPCA': '04', 'LIPIEC': '07', 'SIERPNIA': '08', 'SIERPIEŃ': '08', 'WRZEŚNIA': '09', 'WRZESIEŃ': '09', 
+            'PAŹDZIERNIKA': '10', 'PAŹDZIERNIK': '10', 'LISTOPADA': '11', 'LISTOPAD': '11', 'GRUDNIA': '12', 'GRUDZIEŃ': '12'
+        }
+        for month_name, month_number in month_mapping.items():
+            date_text = date_text.replace(month_name, month_number)
+        date_obj = datetime.strptime(date_text, '%d %m %Y')
+        txt_file_name = date_obj.strftime('%d-%m-%Y') + '.md'
+    else:
+        txt_file_name = os.path.basename(img_name).split('.')[0] + '.md'
+
     txt_file_path = os.path.join(save_path, txt_file_name)
 
     if os.path.isfile(txt_file_path):
-        print(f"Plik {txt_file_path} już istnieje, pomijanie tworzenia.")
+        with open(txt_file_path, 'a', encoding='utf-8') as file:
+            file.write(f"\n\n====\n\n")
+            if title_elem and date_elem:
+                title_text = title_elem.get_text(strip=True)
+                file.write(f"### {title_text}\n\n")
+            elif date_elem:
+                title_text = date_obj.strftime('%d-%m-%Y')
+                file.write(f"#### {title_text}\n\n")
+            if post_url:
+                file.write(f"Link do wpisu: [{post_url}]({post_url}) \n\n")
+            if img_elem:
+                file.write(f"![]({img_md_path})\n\n")
+            if content_elem:
+                file.write(f"{content_elem.get_text(strip=True)}\n")
+        print(f"Plik {txt_file_path} już istnieje, dodawanie zawartości.")
         return
 
     with open(txt_file_path, 'w', encoding='utf-8') as file:
-        file.write(f"---\ntagi: DailyNote\n---\n")
+        file.write(f"---\ntagi: DailyNote\n---\n\n")
         if title_elem and date_elem:
             title_text = title_elem.get_text(strip=True)
-            date_text = date_elem.get_text(strip=True).replace('Dodane ', '')
+            date_text = date_obj.strftime('%d-%m-%Y')
             file.write(f"### {title_text}\nData: {date_text}\n\n")
         elif date_elem:
-            title_text = date_elem.get_text(strip=True).replace('Dodane ', '')
+            title_text = date_obj.strftime('%d-%m-%Y')
             file.write(f"#### {title_text}\n\n")
         if post_url:
             file.write(f"Link do wpisu: [{post_url}]({post_url}) \n\n")
@@ -82,28 +112,23 @@ def download_post(post_url, save_path):
             file.write(f"{content_elem.get_text(strip=True)}\n")
 
 
-
 def get_all_post_links(profile_name):
+    print("Pobieranie linków do postów, proszę czekać...")
     try:
         archive_url = f"https://www.photoblog.pl/{profile_name}/archiwum"
         driver.get(archive_url)
-        soup = BeautifulSoup(driver.page_source, 'html.parser')
 
-        # Sprawdź, czy na stronie pojawia się wiadomość o nieistniejącym użytkowniku
-        if soup.body.get_text(strip=True) == f"Użytkownik {profile_name} nie istnieje w serwisie Photoblog.pl.":
-            print(f"Użytkownik {profile_name} nie istnieje w serwisie Photoblog.pl.")
-            return None
-
+        # Przewijanie strony w dół, aby załadować wszystkie posty
         last_height = driver.execute_script("return document.body.scrollHeight")
-
         while True:
             driver.execute_script("window.scrollTo(0, document.body.scrollHeight);")
-            time.sleep(2)  # Wait for page to load
+            time.sleep(2)  # Czekanie na załadowanie strony
             new_height = driver.execute_script("return document.body.scrollHeight")
-            if new_height == last_height:
+            if new_height == last_height:  # Jeśli nie ma więcej do załadowania, przerywamy pętlę
                 break
             last_height = new_height
 
+        soup = BeautifulSoup(driver.page_source, 'html.parser')
         post_links = [a['href'] for a in soup.select(f'div.arch_post a[href^="https://www.photoblog.pl/{profile_name}/"]')]
 
         return post_links
@@ -119,7 +144,7 @@ def main():
         post_links = get_all_post_links(profile_name)
 
         if post_links is not None and len(post_links) > 0:
-            # Pobiera ścieżkę do zapisu od użytkownika
+            print(f"Znaleziono {len(post_links)} linków do postów.")
             save_path = input("Podaj ścieżkę do zapisu (np. _AssetsLinks): ").strip()
 
             if not os.path.exists(save_path):
