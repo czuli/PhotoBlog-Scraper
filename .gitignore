@@ -1,0 +1,12 @@
+# Ignore all folders
+*/
+
+*.png
+*.jpg
+*.md
+
+!*.py
+!*.txt
+!.gitignore
+!README.md
+.DS_Store
