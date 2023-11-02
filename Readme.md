@@ -15,37 +15,41 @@ Kroki instalacyjne dla użytkowników systemów uniksowych i MacOS:
 
 Za pomocą terminala sklonuj repozytorium do lokalnego katalogu:
 
-git clone https://twoje-repozytorium.git
-cd sciezka-do-twojego-repozytorium
+git clone https://github.com/czuli/PhotoBlog-Scraper.git
+cd PhotoBlog-Scraper
 
 
-### 2. (Opcjonalnie) Utwórz środowisko wirtualne
-
-Aby utworzyć izolowane środowisko dla zależności Pythona, wykonaj:
-
-
-### 3. Zainstaluj zależności
+### 2. Zainstaluj zależności
 
 Zainstaluj wymagane pakiety używając `pip`:
 
 pip install -r requirements.txt
 
 
-## Uruchomienie skryptu
+### 3. Uruchomienie skryptu
 
 Aby uruchomić skrypt, upewnij się, że jesteś w katalogu zawierającym `scraper.py` i wykonaj:
 
-python scraper.py
+python scraper.py / python3 scraper.py
 
+Podaj nazwę profilu: nazwa profilu na photoblog.pl (pobierz z adresu url).
+Podaj ścieżkę do zapisu (np. _AssetsLinks): your_folder_name
 
 ## Struktura katalogów
 
 Po uruchomieniu skryptu zostanie utworzona następująca struktura katalogów:
 
-_AssetsLinks/
-1231231231/
-1231231231.jpg
-1231231231.md
+your_folder_name/
+│
+├── 123/
+│ ├── 123.jpg
+│
+├── 1231231231/
+│ ├── 1231231231.jpg
+│
+│
+├── 123.md
+└── 1231231231.md
 
 
 ## Ważne informacje
@@ -56,4 +60,3 @@ _AssetsLinks/
 ## Licencja
 
 O ile nie zaznaczono inaczej, kody źródłowe są udostępnione na licencji MIT.
-
