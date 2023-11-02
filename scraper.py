@@ -84,38 +84,59 @@ def download_post(post_url, save_path):
 
 
 def get_all_post_links(profile_name):
-    archive_url = f"https://www.photoblog.pl/{profile_name}/archiwum"
-    driver.get(archive_url)
-    last_height = driver.execute_script("return document.body.scrollHeight")
+    try:
+        archive_url = f"https://www.photoblog.pl/{profile_name}/archiwum"
+        driver.get(archive_url)
+        soup = BeautifulSoup(driver.page_source, 'html.parser')
 
-    while True:
-        driver.execute_script("window.scrollTo(0, document.body.scrollHeight);")
-        time.sleep(2)  # Wait for page to load
-        new_height = driver.execute_script("return document.body.scrollHeight")
-        if new_height == last_height:
-            break
-        last_height = new_height
+        # Sprawdź, czy na stronie pojawia się wiadomość o nieistniejącym użytkowniku
+        if soup.body.get_text(strip=True) == f"Użytkownik {profile_name} nie istnieje w serwisie Photoblog.pl.":
+            print(f"Użytkownik {profile_name} nie istnieje w serwisie Photoblog.pl.")
+            return None
 
-    soup = BeautifulSoup(driver.page_source, 'html.parser')
-    post_links = [a['href'] for a in soup.select(f'div.arch_post a[href^="https://www.photoblog.pl/{profile_name}/"]')]
+        last_height = driver.execute_script("return document.body.scrollHeight")
 
-    return post_links
+        while True:
+            driver.execute_script("window.scrollTo(0, document.body.scrollHeight);")
+            time.sleep(2)  # Wait for page to load
+            new_height = driver.execute_script("return document.body.scrollHeight")
+            if new_height == last_height:
+                break
+            last_height = new_height
+
+        post_links = [a['href'] for a in soup.select(f'div.arch_post a[href^="https://www.photoblog.pl/{profile_name}/"]')]
+
+        return post_links
+    except Exception as e:
+        print(f"Błąd: {e}. Sprawdź, czy nazwa profilu jest poprawna.")
+        return None
 
 def main():
-    # Pobiera nazwę profilu i ścieżkę do zapisu od użytkownika
-    profile_name = input("Podaj nazwę profilu: ").strip()
-    save_path = input("Podaj ścieżkę do zapisu (np. _AssetsLinks): ").strip()
+    while True:
+        # Pobiera nazwę profilu od użytkownika
+        profile_name = input("Podaj nazwę profilu: ").strip()
 
-    if not os.path.exists(save_path):
-        os.makedirs(save_path)
+        post_links = get_all_post_links(profile_name)
 
-    post_links = get_all_post_links(profile_name)
+        if post_links is not None and len(post_links) > 0:
+            # Pobiera ścieżkę do zapisu od użytkownika
+            save_path = input("Podaj ścieżkę do zapisu (np. _AssetsLinks): ").strip()
 
-    print(f"Found {len(post_links)} post links")
-    for link in post_links:
-        download_post(link, save_path)
+            if not os.path.exists(save_path):
+                os.makedirs(save_path)
+
+            print(f"Found {len(post_links)} post links")
+            for link in post_links:
+                download_post(link, save_path)
+            break
+        elif post_links is not None and len(post_links) == 0:
+            print("Nie znaleziono postów dla tego profilu.")
+            break
+        else:
+            print("Podaj poprawną nazwę profilu.")
 
     driver.quit()
 
 if __name__ == "__main__":
     main()
+
