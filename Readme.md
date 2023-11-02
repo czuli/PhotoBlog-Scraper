@@ -39,6 +39,11 @@ Podaj ścieżkę do zapisu (np. _AssetsLinks): your_folder_name
 
 Po uruchomieniu skryptu zostanie utworzona następująca struktura katalogów:
 
+
+
+```
+.
+├── ...
 your_folder_name/
 │
 ├── 123/
@@ -50,6 +55,7 @@ your_folder_name/
 │
 ├── 123.md
 └── 1231231231.md
+```
 
 
 ## Ważne informacje
