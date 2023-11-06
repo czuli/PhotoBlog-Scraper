@@ -8,16 +8,12 @@ from bs4 import BeautifulSoup
 from urllib.parse import unquote
 from datetime import datetime
 
-HEADERS = {
-    "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/58.0.3029.110 Safari/537.3"
-}
+# Globalne zmienne konfiguracyjne
+HEADERS = {"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/58.0.3029.110 Safari/537.3"}
+CHROME_OPTIONS = ['--headless']  # For headless browser operation
+SESSION = requests.Session()
+SESSION.headers.update(HEADERS)
 
-# Setup Chrome options
-options = webdriver.ChromeOptions()
-options.add_argument('--headless')  # For headless browser operation
-
-# Initialize Selenium WebDriver
-driver = webdriver.Chrome(service=Service(ChromeDriverManager().install()), options=options)
 
 def save_image(img_url, save_path):
     img_name = os.path.basename(unquote(img_url)).split('?')[0]
@@ -63,9 +59,9 @@ def download_post(post_url, save_path):
         date_text = date_elem.get_text(strip=True).replace('Dodane ', '')
         # Map Polish month names to numbers
         month_mapping = {
-            'STYCZNIA': '01', 'STYCZEŃ': '01', 'LUTEGO': '02', 'LUTY': '02', 'MARCA': '03', 'MARZEC': '03', 
-            'KWIECIEŃ': '04', 'KWIETNIA': '04', 'KWIECIENIA': '04', 'MAJA': '05', 'MAJ': '05', 'CZERWCA': '06', 'CZERWIEC': '06', 
-            'LIPIECA': '07', 'LIPCA': '04', 'LIPIEC': '07', 'SIERPNIA': '08', 'SIERPIEŃ': '08', 'WRZEŚNIA': '09', 'WRZESIEŃ': '09', 
+            'STYCZNIA': '01', 'STYCZEŃ': '01', 'LUTEGO': '02', 'LUTY': '02', 'MARCA': '03', 'MARZEC': '03',
+            'KWIECIEŃ': '04', 'KWIETNIA': '04', 'KWIECIENIA': '04', 'MAJA': '05', 'MAJ': '05', 'CZERWCA': '06', 'CZERWIEC': '06',
+            'LIPIECA': '07', 'LIPCA': '04', 'LIPIEC': '07', 'SIERPNIA': '08', 'SIERPIEŃ': '08', 'WRZEŚNIA': '09', 'WRZESIEŃ': '09',
             'PAŹDZIERNIKA': '10', 'PAŹDZIERNIK': '10', 'LISTOPADA': '11', 'LISTOPAD': '11', 'GRUDNIA': '12', 'GRUDZIEŃ': '12'
         }
         for month_name, month_number in month_mapping.items():
@@ -111,8 +107,13 @@ def download_post(post_url, save_path):
         if content_elem:
             file.write(f"{content_elem.get_text(strip=True)}\n")
 
+def get_driver():
+    options = webdriver.ChromeOptions()
+    for opt in CHROME_OPTIONS:
+        options.add_argument(opt)
+    return webdriver.Chrome(service=Service(ChromeDriverManager().install()), options=options)
 
-def get_all_post_links(profile_name):
+def get_all_post_links(driver, profile_name):
     print("Pobieranie linków do postów, proszę czekać...")
     try:
         archive_url = f"https://www.photoblog.pl/{profile_name}/archiwum"
@@ -137,11 +138,13 @@ def get_all_post_links(profile_name):
         return None
 
 def main():
-    while True:
+    driver = get_driver()
+
+    try:
         # Pobiera nazwę profilu od użytkownika
         profile_name = input("Podaj nazwę profilu: ").strip()
 
-        post_links = get_all_post_links(profile_name)
+        post_links = get_all_post_links(driver, profile_name)
 
         if post_links is not None and len(post_links) > 0:
             print(f"Znaleziono {len(post_links)} linków do postów.")
@@ -150,18 +153,17 @@ def main():
             if not os.path.exists(save_path):
                 os.makedirs(save_path)
 
-            print(f"Found {len(post_links)} post links")
+            print(f"Znaleziono {len(post_links)} linków do postów")
             for link in post_links:
                 download_post(link, save_path)
-            break
         elif post_links is not None and len(post_links) == 0:
             print("Nie znaleziono postów dla tego profilu.")
-            break
         else:
             print("Podaj poprawną nazwę profilu.")
-
-    driver.quit()
+    except Exception as e:
+        print(f"Wystąpił wyjątek: {e}")
+    finally:
+        driver.quit()
 
 if __name__ == "__main__":
     main()
-
