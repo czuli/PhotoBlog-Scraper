@@ -57,7 +57,6 @@ your_folder_name/
 └── 1231231231.md
 ```
 
-
 ## Ważne informacje
 
 * Przed uruchomieniem upewnij się, że masz prawo do pobierania i użytkowania treści z danego serwisu internetowego.
