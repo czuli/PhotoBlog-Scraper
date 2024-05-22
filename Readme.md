@@ -40,7 +40,6 @@ Podaj ścieżkę do zapisu (np. _AssetsLinks): your_folder_name
 Po uruchomieniu skryptu zostanie utworzona następująca struktura katalogów:
 
 
-
 ```
 .
 ├── ...
