@@ -1,12 +1,15 @@
 import os
 import time
 import requests
+import argparse
+import logging
 from selenium import webdriver
 from webdriver_manager.chrome import ChromeDriverManager
 from selenium.webdriver.chrome.service import Service
 from bs4 import BeautifulSoup
 from urllib.parse import unquote
 from datetime import datetime
+import json
 
 # Globalne zmienne konfiguracyjne
 HEADERS = {"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/58.0.3029.110 Safari/537.3"}
@@ -14,6 +17,9 @@ CHROME_OPTIONS = ['--headless']  # For headless browser operation
 SESSION = requests.Session()
 SESSION.headers.update(HEADERS)
 
+def setup_logging(devmode):
+    logging.basicConfig(level=logging.DEBUG if devmode else logging.INFO,
+                        format='%(asctime)s - %(levelname)s - %(message)s')
 
 def save_image(img_url, save_path):
     img_name = os.path.basename(unquote(img_url)).split('?')[0]
@@ -22,7 +28,7 @@ def save_image(img_url, save_path):
     img_path = os.path.join(img_folder_path, img_name)
 
     if os.path.isfile(img_path):
-        print(f"Plik {img_path} już istnieje, pomijanie pobierania pliku.")
+        logging.info(f"Plik {img_path} już istnieje, pomijanie pobierania pliku.")
         return img_name
 
     response = requests.get(img_url, stream=True, headers=HEADERS)
@@ -35,7 +41,7 @@ def save_image(img_url, save_path):
     return img_name
 
 def download_post(post_url, save_path):
-    print(f"Pobieranie: {post_url}")
+    logging.info(f"Pobieranie: {post_url}")
     response = requests.get(post_url, headers=HEADERS)
     response.raise_for_status()
 
@@ -50,73 +56,34 @@ def download_post(post_url, save_path):
     if img_elem:
         img_url = img_elem['src']
         img_name = save_image(img_url, save_path)
-        img_md_path = f"/{os.path.join(save_path, img_name.rsplit('.', 1)[0], img_name)}"
-    else:
-        print(f"Nie znaleziono elementu obrazu w poście: {post_url}")
-        return
+        img_md_path = f"/{os.path.join(save_path, img_name)}"
 
-    if date_elem:
-        date_text = date_elem.get_text(strip=True).replace('Dodane ', '')
-        # Map Polish month names to numbers
-        month_mapping = {
-            'STYCZNIA': '01', 'STYCZEŃ': '01', 'LUTEGO': '02', 'LUTY': '02', 'MARCA': '03', 'MARZEC': '03',
-            'KWIECIEŃ': '04', 'KWIETNIA': '04', 'KWIECIENIA': '04', 'MAJA': '05', 'MAJ': '05', 'CZERWCA': '06', 'CZERWIEC': '06',
-            'LIPIECA': '07', 'LIPCA': '04', 'LIPIEC': '07', 'SIERPNIA': '08', 'SIERPIEŃ': '08', 'WRZEŚNIA': '09', 'WRZESIEŃ': '09',
-            'PAŹDZIERNIKA': '10', 'PAŹDZIERNIK': '10', 'LISTOPADA': '11', 'LISTOPAD': '11', 'GRUDNIA': '12', 'GRUDZIEŃ': '12'
+        date_text = date_elem.get_text(strip=True) if date_elem else "Brak daty"
+        content_text = content_elem.get_text(strip=True) if content_elem else "Brak treści"
+
+        metadata = {
+            "title": title_text,
+            "date": date_text,
+            "content": content_text,
+            "image": img_md_path
         }
-        for month_name, month_number in month_mapping.items():
-            date_text = date_text.replace(month_name, month_number)
-        date_obj = datetime.strptime(date_text, '%d %m %Y')
-        txt_file_name = date_obj.strftime('%d-%m-%Y') + '.md'
-    else:
-        txt_file_name = os.path.basename(img_name).split('.')[0] + '.md'
 
-    txt_file_path = os.path.join(save_path, txt_file_name)
-
-    if os.path.isfile(txt_file_path):
-        with open(txt_file_path, 'a', encoding='utf-8') as file:
-            file.write(f"\n\n====\n\n")
-            if title_elem and date_elem:
-                title_text = title_elem.get_text(strip=True)
-                file.write(f"### {title_text}\n\n")
-            elif date_elem:
-                title_text = date_obj.strftime('%d-%m-%Y')
-                file.write(f"#### {title_text}\n\n")
-            if post_url:
-                file.write(f"Link do wpisu: [{post_url}]({post_url}) \n\n")
-            if img_elem:
-                file.write(f"![]({img_md_path})\n\n")
-            if content_elem:
-                file.write(f"{content_elem.get_text(strip=True)}\n")
-        print(f"Plik {txt_file_path} już istnieje, dodawanie zawartości.")
-        return
-
-    with open(txt_file_path, 'w', encoding='utf-8') as file:
-        file.write(f"---\ntagi: DailyNote\n---\n\n")
-        if title_elem and date_elem:
-            title_text = title_elem.get_text(strip=True)
-            date_text = date_obj.strftime('%d-%m-%Y')
-            file.write(f"### {title_text}\nData: {date_text}\n\n")
-        elif date_elem:
-            title_text = date_obj.strftime('%d-%m-%Y')
-            file.write(f"#### {title_text}\n\n")
-        if post_url:
-            file.write(f"Link do wpisu: [{post_url}]({post_url}) \n\n")
-        if img_elem:
-            file.write(f"![]({img_md_path})\n\n")
-        if content_elem:
-            file.write(f"{content_elem.get_text(strip=True)}\n")
+        metadata_path = os.path.join(save_path, f"{os.path.splitext(img_name)[0]}.json")
+        with open(metadata_path, 'w', encoding='utf-8') as f:
+            json.dump(metadata, f, ensure_ascii=False, indent=4)
 
 def get_driver():
+    chrome_service = Service(ChromeDriverManager().install())
     options = webdriver.ChromeOptions()
-    for opt in CHROME_OPTIONS:
-        options.add_argument(opt)
-    return webdriver.Chrome(service=Service(ChromeDriverManager().install()), options=options)
+    for option in CHROME_OPTIONS:
+        options.add_argument(option)
+    driver = webdriver.Chrome(service=chrome_service, options=options)
+    return driver
 
 def get_all_post_links(driver, profile_name):
-    print("Pobieranie linków do postów, proszę czekać...")
     try:
         archive_url = f"https://www.photoblog.pl/{profile_name}/archiwum"
+        logging.debug(f"Przechodzenie do: {archive_url}")
         driver.get(archive_url)
 
         # Przewijanie strony w dół, aby załadować wszystkie posty
@@ -132,38 +99,47 @@ def get_all_post_links(driver, profile_name):
         soup = BeautifulSoup(driver.page_source, 'html.parser')
         post_links = [a['href'] for a in soup.select(f'div.arch_post a[href^="https://www.photoblog.pl/{profile_name}/"]')]
 
+        logging.debug(f"Znaleziono {len(post_links)} linków do postów.")
         return post_links
     except Exception as e:
-        print(f"Błąd: {e}. Sprawdź, czy nazwa profilu jest poprawna.")
+        logging.error(f"Błąd: {e}. Sprawdź, czy nazwa profilu jest poprawna.")
         return None
 
-def main():
+def main(profile_name=None, save_path=None, devmode=False):
+    setup_logging(devmode)
+
+    if profile_name is None:
+        profile_name = input("Podaj nazwę profilu: ").strip()
+    if save_path is None:
+        save_path = input("Podaj ścieżkę do zapisu (np. _AssetsLinks): ").strip()
+
     driver = get_driver()
 
     try:
-        # Pobiera nazwę profilu od użytkownika
-        profile_name = input("Podaj nazwę profilu: ").strip()
-
         post_links = get_all_post_links(driver, profile_name)
 
         if post_links is not None and len(post_links) > 0:
-            print(f"Znaleziono {len(post_links)} linków do postów.")
-            save_path = input("Podaj ścieżkę do zapisu (np. _AssetsLinks): ").strip()
+            logging.info(f"Znaleziono {len(post_links)} linków do postów.")
 
             if not os.path.exists(save_path):
                 os.makedirs(save_path)
 
-            print(f"Znaleziono {len(post_links)} linków do postów")
             for link in post_links:
                 download_post(link, save_path)
         elif post_links is not None and len(post_links) == 0:
-            print("Nie znaleziono postów dla tego profilu.")
+            logging.info("Nie znaleziono postów dla tego profilu.")
         else:
-            print("Podaj poprawną nazwę profilu.")
+            logging.info("Podaj poprawną nazwę profilu.")
     except Exception as e:
-        print(f"Wystąpił wyjątek: {e}")
+        logging.error(f"Wystąpił wyjątek: {e}")
     finally:
         driver.quit()
 
 if __name__ == "__main__":
-    main()
+    parser = argparse.ArgumentParser(description='Pobieranie postów z profilu.')
+    parser.add_argument('profile_name', type=str, nargs='?', help='Nazwa profilu')
+    parser.add_argument('save_path', type=str, nargs='?', help='Ścieżka do zapisu')
+    parser.add_argument('--devmode', action='store_true', help='Włącza tryb deweloperski')
+    args = parser.parse_args()
+
+    main(args.profile_name, args.save_path, args.devmode)
